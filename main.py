@@ -30,12 +30,12 @@ class GroupChattingContext(BasePlugin):
         self.ap.logger.info("🧩 [GroupChattingContext] 插件初始化")
 
     # 收到群聊消息时，写入历史记录
-    # TODO rule filter，只记录开启聊天的群
     @handler(GroupMessageReceived)
     async def group_message_received(self, ctx: EventContext):
         if (
             ctx.event.query is None
             or ctx.event.query.launcher_type != LauncherTypes.GROUP
+            or not self._validate_group(ctx.event.query.launcher_id)
         ):
             return
 
@@ -53,6 +53,7 @@ class GroupChattingContext(BasePlugin):
         if (
             ctx.event.query is None
             or ctx.event.query.launcher_type != LauncherTypes.GROUP
+            or not self._validate_group(ctx.event.query.launcher_id)
         ):
             return
 
@@ -72,6 +73,7 @@ class GroupChattingContext(BasePlugin):
         if (
             ctx.event.query is None
             or ctx.event.query.launcher_type != LauncherTypes.GROUP
+            or not self._validate_group(ctx.event.query.launcher_id)
         ):
             return
 
@@ -106,6 +108,15 @@ class GroupChattingContext(BasePlugin):
             self.history_mgr.clear(
                 session_name=f"{ctx.event.query.launcher_type.value}_{ctx.event.query.launcher_id}"
             )
+
+    def _validate_group(self, group_id: int | str) -> bool:
+        rules = self.ap.pipeline_cfg.data["respond-rules"]
+        if str(group_id) in rules:
+            rule = rules[str(group_id)]
+            if "at" in rule and (rule["at"]):
+                return True
+
+        return False
 
     def _make_history_propmt(self, rows: list[list[str]] | None, strip=True) -> str:
         """构建历史记录prompt
