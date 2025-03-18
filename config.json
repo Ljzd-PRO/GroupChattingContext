@@ -1,0 +1,10 @@
+{
+  "991250350":{
+    "limit": 20,
+    "propmt": "## Group Chatting Context\n 你现在正在一个三人小群里水群."
+  },
+  "default":{
+    "limit": 20,
+    "propmt": "you are now in a group chatting."
+  }
+}

@@ -5,14 +5,18 @@ from collections import deque
 
 from pkg.core import app
 from pkg.core.entities import Query
+from plugins.GroupChattingContext.config import Config
 
 
 class HistoryMgr:
-    def __init__(self, ap: app.Application):
-        self.ap = ap
+    def __init__(self, conf: Config):
+        self.conf = conf
 
         self.data_dir = os.path.join(".", "data", "plugins", "GroupChattingContext")
         self.csv_header = ["sender_id", "timestamp", "content"]
+
+    async def initialize(self, ap: app.Application):
+        self.ap = ap
 
     def read(self, session_name: str) -> list[list[str]] | None:
         """从文件读取历史记录
@@ -35,8 +39,6 @@ class HistoryMgr:
                 if rows[0] == self.csv_header:
                     start_index = 1
 
-                # 只保留最多20条记录（与写入逻辑保持一致）
-                # 但是最后一条消息是重复的，需要截断
                 return rows[start_index:]
 
         except Exception as e:
@@ -66,8 +68,9 @@ class HistoryMgr:
                 except csv.Error:
                     rows = []
 
-        # 分离表头和数据
-        data = deque(maxlen=20)
+        # 分离表头和数据，并控制条数
+        # 双端队列保证丢弃最旧的数据
+        data = deque(maxlen=self.conf.get_by_session_name(session_name).limit)
         if rows:
             # 验证表头
             if rows[0] == self.csv_header:

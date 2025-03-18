@@ -1,5 +1,6 @@
 import asyncio
 from collections import defaultdict
+from typing import cast
 
 from pkg.core.entities import LauncherTypes
 from pkg.plugin.context import APIHost, BasePlugin, EventContext, handler, register
@@ -9,6 +10,7 @@ from pkg.plugin.events import (  # 导入事件类
     PromptPreProcessing,
 )
 from pkg.provider import entities as llm_entities
+from plugins.GroupChattingContext.config import Config
 from plugins.GroupChattingContext.history import HistoryMgr
 
 
@@ -21,12 +23,13 @@ from plugins.GroupChattingContext.history import HistoryMgr
 )
 class GroupChattingContext(BasePlugin):
     def __init__(self, host: APIHost):
-        self.data_dir = "./data/plugins/GroupChattingContext"
-        self.history_mgr = HistoryMgr(self.ap)
+        self.conf = Config()
+        self.history_mgr = HistoryMgr(self.conf)
         self.history_edit_locks = defaultdict(asyncio.Lock)
 
     # 异步初始化
     async def initialize(self):
+        await self.history_mgr.initialize(self.ap)
         self.ap.logger.info("🧩 [GroupChattingContext] 插件初始化")
 
     # 收到群聊消息时，写入历史记录
@@ -57,7 +60,9 @@ class GroupChattingContext(BasePlugin):
         ):
             return
 
-        history = self._make_history_propmt(self._read_history(ctx.event.session_name))  # type: ignore
+        history = self._make_history_propmt(
+            self.history_mgr.read(ctx.event.session_name)  # type: ignore
+        )
 
         # 修改当前消息
         # 参考 preproc.py 中的 events.PromptPreProcessing
@@ -66,6 +71,17 @@ class GroupChattingContext(BasePlugin):
             ctx.event.query.message_chain.insert(
                 1, f"现在，{ctx.event.query.sender_id} 说："
             )
+
+        default_prompt = cast(list[llm_entities.Message], ctx.event.default_prompt)  # type: ignore
+        group_prompt = self.conf.get_by_group_id(ctx.event.query.launcher_id).propmt
+        if len(default_prompt) > 0:
+            if type(default_prompt[0].content) is str:
+                default_prompt[0].content += "\n\n" + group_prompt
+            elif type(default_prompt[0].content) is list:
+                default_prompt[0].content.append(
+                    llm_entities.ContentElement.from_text("\n" + group_prompt)
+                )
+        self.ap.logger.info(f"default prompt {ctx.event.default_prompt}")  # type: ignore
 
     # 收到大模型回复消息时，历史记录注入持久化 conversation, 清空历史记录
     @handler(NormalMessageResponded)
@@ -132,7 +148,7 @@ class GroupChattingContext(BasePlugin):
         history_lines = []
         end = -1 if strip else 0
 
-        for row in rows[-20:end]:
+        for row in rows[:end]:
             if len(row) >= 3:
                 sender_id = row[0].strip()
                 content = row[2].strip()
