@@ -17,7 +17,7 @@ from plugins.GroupChattingContext.history import HistoryMgr
 # 注册插件
 @register(
     name="GroupChattingContext",  # 英文名
-    description="群聊回复时发送完整的历史记录",  # 中文描述
+    description="群聊回复时发送群聊历史记录、每个群聊单独追加 prompt",  # 中文描述
     version="0.1.0",
     author="Sansui233",
 )
@@ -81,7 +81,8 @@ class GroupChattingContext(BasePlugin):
                 default_prompt[0].content.append(
                     llm_entities.ContentElement.from_text("\n" + group_prompt)
                 )
-        self.ap.logger.info(f"default prompt {ctx.event.default_prompt}")  # type: ignore
+        # debug
+        # self.ap.logger.info(f"default prompt {ctx.event.default_prompt}")  # type: ignore
 
     # 收到大模型回复消息时，历史记录注入持久化 conversation, 清空历史记录
     @handler(NormalMessageResponded)
