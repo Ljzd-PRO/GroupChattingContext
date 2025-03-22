@@ -50,7 +50,7 @@ class GroupChattingContext(BasePlugin):
         async with lock:
             self.history_mgr.write(session_name, query=ctx.event.query)
 
-    # 发送 prompt 时，读取历史记录，并修改发送的消息
+    # 发送 prompt 时，读取历史记录，并修改发送的消息。并持久化历史记录至会话
     @handler(PromptPreProcessing)
     async def prompt_pre_processing(self, ctx: EventContext):
         if (
@@ -60,8 +60,9 @@ class GroupChattingContext(BasePlugin):
         ):
             return
 
+        session_name = ctx.event.session_name  # type: ignore
         history = self._make_history_propmt(
-            self.history_mgr.read(ctx.event.session_name)  # type: ignore
+            self.history_mgr.read(session_name)  # type: ignore
         )
 
         # 修改当前消息
@@ -84,21 +85,7 @@ class GroupChattingContext(BasePlugin):
         # debug
         # self.ap.logger.info(f"default prompt {ctx.event.default_prompt}")  # type: ignore
 
-    # 收到大模型回复消息时，历史记录注入持久化 conversation, 清空历史记录
-    @handler(NormalMessageResponded)
-    async def normal_message_responded(self, ctx: EventContext):
-        if (
-            ctx.event.query is None
-            or ctx.event.query.launcher_type != LauncherTypes.GROUP
-            or not self._validate_group(ctx.event.query.launcher_id)
-        ):
-            return
-
-        session_name = (
-            f"{ctx.event.query.launcher_type.value}_{ctx.event.query.launcher_id}"
-        )
-
-        # 注入聊天历史记录
+        # 注入聊天历史记录至会话，清空历史记录
         lock = self.history_edit_locks[session_name]
         async with lock:
             session = await self.ap.sess_mgr.get_session(ctx.event.query)
@@ -122,9 +109,7 @@ class GroupChattingContext(BasePlugin):
             #     f"\n[%%注入之后的 message] message: {conversation.messages}\n"
             # )
 
-            self.history_mgr.clear(
-                session_name=f"{ctx.event.query.launcher_type.value}_{ctx.event.query.launcher_id}"
-            )
+            self.history_mgr.clear(session_name)
 
     def _validate_group(self, group_id: int | str) -> bool:
         rules = self.ap.pipeline_cfg.data["respond-rules"]
