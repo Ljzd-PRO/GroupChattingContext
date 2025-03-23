@@ -1,8 +1,9 @@
 import asyncio
+import copy
 from collections import defaultdict
 from typing import cast
 
-from pkg.core.entities import LauncherTypes
+from pkg.core.entities import LauncherTypes, Query
 from pkg.plugin.context import APIHost, BasePlugin, EventContext, handler, register
 from pkg.plugin.events import (  # 导入事件类
     GroupMessageReceived,
@@ -50,7 +51,7 @@ class GroupChattingContext(BasePlugin):
         async with lock:
             self.history_mgr.write(session_name, query=ctx.event.query)
 
-    # 发送 prompt 时，读取历史记录，并修改发送的消息。并持久化历史记录至会话
+    # 发送 prompt 时，读取历史记录，并修改发送的消息。并持久化历史记录至会话，最后删除历史记录
     @handler(PromptPreProcessing)
     async def prompt_pre_processing(self, ctx: EventContext):
         if (
@@ -65,51 +66,42 @@ class GroupChattingContext(BasePlugin):
             self.history_mgr.read(session_name)  # type: ignore
         )
 
-        # 修改当前消息
-        # 参考 preproc.py 中的 events.PromptPreProcessing
-        if history and history != "":
-            ctx.event.query.message_chain.insert(0, f"{history}\n\n")
-            ctx.event.query.message_chain.insert(
-                1, f"现在，{ctx.event.query.sender_id} 说："
-            )
+        #  default_prompt(=query.prompt.messages=系统人格) 和 prompt（=query.messages=会话消息=历史记录） 和 当前用户消息
+        #  req_messages = query.prompt.messages.copy() + query.messages.copy() + [query.user_message]
 
-        default_prompt = cast(list[llm_entities.Message], ctx.event.default_prompt)  # type: ignore
+        # 修改当前发给 AI 的 user_message( 由message_chain 构建)，注入发送者 id
+        cast(llm_entities.Message, ctx.event.query.user_message)
+        if ctx.event.query.user_message:
+            if type(ctx.event.query.user_message.content) is str:
+                ctx.event.query.user_message.content = f"{history}\n\n 现在，{ctx.event.query.sender_id} 说：{ctx.event.query.user_message.content}"
+            elif type(ctx.event.query.user_message.content) is list:
+                ctx.event.query.user_message.content.insert(
+                    0,
+                    llm_entities.ContentElement.from_text(f"{history}\n"),
+                )
+                ctx.event.query.user_message.content.insert(
+                    1,
+                    llm_entities.ContentElement.from_text(
+                        f"{history}\n\n 现在，{ctx.event.query.sender_id} 说："
+                    ),
+                )
+
+        ctx.event = cast(PromptPreProcessing, ctx.event)
+        ctx.event.query = cast(Query, ctx.event.query)
+
+        # 修改发送的 default_prompt
+        processed_prompt = copy.deepcopy(ctx.event.default_prompt)
         group_prompt = self.conf.get_by_group_id(ctx.event.query.launcher_id).propmt
-        if len(default_prompt) > 0:
-            if type(default_prompt[0].content) is str:
-                default_prompt[0].content += "\n\n" + group_prompt
-            elif type(default_prompt[0].content) is list:
-                default_prompt[0].content.append(
+        if len(processed_prompt) > 0:
+            if type(processed_prompt[0].content) is str:
+                processed_prompt[0].content += "\n\n" + group_prompt
+            elif type(processed_prompt[0].content) is list:
+                processed_prompt[0].content.append(
                     llm_entities.ContentElement.from_text("\n" + group_prompt)
                 )
-        # debug
-        # self.ap.logger.info(f"default prompt {ctx.event.default_prompt}")  # type: ignore
+        ctx.add_return("default_prompt", processed_prompt)
 
-        # 注入聊天历史记录至会话，清空历史记录
-        lock = self.history_edit_locks[session_name]
-        async with lock:
-            session = await self.ap.sess_mgr.get_session(ctx.event.query)
-            conversation = await self.ap.sess_mgr.get_conversation(session)
-            rows = self.history_mgr.read(session_name)
-            history = self._make_history_propmt(rows)
-            last_row = rows[-1] if rows else None
-            if last_row:
-                # 本轮对话者的持久化信息，因为 无法控制本轮对话的 message, 所以 append 在上一轮
-                history += f"\n\n然后 {ctx.event.query.sender_id} 说："
-            if history and history != "":
-                # 新建fake历史
-                conversation.messages.append(
-                    llm_entities.Message(role="user", content=history)
-                )
-                conversation.messages.append(
-                    llm_entities.Message(role="assistant", content="（观察对话中）")
-                )
-
-            # self.ap.logger.info(
-            #     f"\n[%%注入之后的 message] message: {conversation.messages}\n"
-            # )
-
-            self.history_mgr.clear(session_name)
+        self.history_mgr.clear(session_name)
 
     def _validate_group(self, group_id: int | str) -> bool:
         rules = self.ap.pipeline_cfg.data["respond-rules"]
