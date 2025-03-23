@@ -19,7 +19,7 @@ from plugins.GroupChattingContext.history import HistoryMgr
 @register(
     name="GroupChattingContext",  # 英文名
     description="群聊回复时发送群聊历史记录、每个群聊单独追加 prompt",  # 中文描述
-    version="0.1.0",
+    version="0.1.1",
     author="Sansui233",
 )
 class GroupChattingContext(BasePlugin):
@@ -70,10 +70,13 @@ class GroupChattingContext(BasePlugin):
         #  req_messages = query.prompt.messages.copy() + query.messages.copy() + [query.user_message]
 
         # 修改当前发给 AI 的 user_message( 由message_chain 构建)，注入发送者 id
+        if history and history.strip() != "":
+            history = f"{history}\n\n "
+
         cast(llm_entities.Message, ctx.event.query.user_message)
         if ctx.event.query.user_message:
             if type(ctx.event.query.user_message.content) is str:
-                ctx.event.query.user_message.content = f"{history}\n\n 现在，{ctx.event.query.sender_id} 说：{ctx.event.query.user_message.content}"
+                ctx.event.query.user_message.content = f"{history}现在，{ctx.event.query.sender_id} 说：{ctx.event.query.user_message.content}"
             elif type(ctx.event.query.user_message.content) is list:
                 ctx.event.query.user_message.content.insert(
                     0,
@@ -82,7 +85,7 @@ class GroupChattingContext(BasePlugin):
                 ctx.event.query.user_message.content.insert(
                     1,
                     llm_entities.ContentElement.from_text(
-                        f"{history}\n\n 现在，{ctx.event.query.sender_id} 说："
+                        f"{history}现在，{ctx.event.query.sender_id} 说："
                     ),
                 )
 
