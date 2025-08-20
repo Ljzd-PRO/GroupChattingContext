@@ -39,7 +39,7 @@ class GroupChattingContext(BasePlugin):
         if (
             ctx.event.query is None
             or ctx.event.query.launcher_type != LauncherTypes.GROUP
-            or not self._validate_group(ctx.event.query.launcher_id)
+            or not self._validate_group(ctx.event.query.launcher_id, ctx.event.query.pipeline_config['trigger'])
         ):
             return
 
@@ -57,7 +57,7 @@ class GroupChattingContext(BasePlugin):
         if (
             ctx.event.query is None
             or ctx.event.query.launcher_type != LauncherTypes.GROUP
-            or not self._validate_group(ctx.event.query.launcher_id)
+            or not self._validate_group(ctx.event.query.launcher_id, ctx.event.query.pipeline_config['trigger'])
         ):
             return
 
@@ -106,13 +106,13 @@ class GroupChattingContext(BasePlugin):
 
         self.history_mgr.clear(session_name)
 
-    def _validate_group(self, group_id: int | str) -> bool:
-        rules = self.ap.pipeline_cfg.data["respond-rules"]
-        if str(group_id) in rules:
-            rule = rules[str(group_id)]
-            if "at" in rule and (rule["at"]):
+    def _validate_group(self, group_id: int | str, trigger: dict) -> bool:
+        group_id_text = f"group_{group_id}"
+        access_control = trigger.get("access-control")
+        group_respond_rule = trigger.get("group-respond-rules")
+        if access_control and group_id_text in access_control.get("whitelist", []) and group_id_text not in access_control.get("blacklist", []):
+            if group_respond_rule and group_respond_rule.get("at"):
                 return True
-
         return False
 
     def _make_history_propmt(self, rows: list[list[str]] | None, strip=True) -> str:
