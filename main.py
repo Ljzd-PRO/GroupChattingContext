@@ -104,7 +104,24 @@ class GroupChattingContext(BasePlugin):
                 )
         ctx.add_return("default_prompt", processed_prompt)
 
-        self.history_mgr.clear(session_name)
+    # 收到机器人回复时，写入历史记录
+    @handler(NormalMessageResponded)
+    async def normal_message_responded(self, ctx: EventContext):
+        ctx.event = cast(NormalMessageResponded, ctx.event)
+        if (
+            ctx.event.query is None
+            or ctx.event.query.launcher_type != LauncherTypes.GROUP
+            or not self._validate_group(ctx.event.query.launcher_id, ctx.event.query.pipeline_config['trigger'])
+        ):
+            return
+
+        session_name = (
+            f"{ctx.event.query.launcher_type.value}_{ctx.event.query.launcher_id}"
+        )
+
+        lock = self.history_edit_locks[session_name]
+        async with lock:
+            self.history_mgr.write(session_name, query=ctx.event.query, is_response=True)
 
     def _validate_group(self, group_id: int | str, trigger: dict) -> bool:
         group_id_text = f"group_{group_id}"

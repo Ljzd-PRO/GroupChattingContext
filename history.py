@@ -5,6 +5,7 @@ from collections import deque
 
 from pkg.core import app
 from pkg.core.entities import Query
+from pkg.platform.types.message import MessageChain
 from plugins.GroupChattingContext.config import Config
 
 
@@ -45,10 +46,16 @@ class HistoryMgr:
             self.ap.logger.info(f"读取历史记录失败: {str(e)}\n")
             return None
 
-    def write(self, session_name: str, query: Query) -> None:
+    def write(self, session_name: str, query: Query, is_response: bool = False) -> None:
         """写入指定 session 历史记录"""
-        sender_id = query.sender_id
-        content = str(query.message_chain)
+        sender_id = query.sender_id if not is_response else query.adapter.bot_account_id
+        content = str(query.message_chain) if not is_response else "".join(
+            map(
+                str, map(
+                    lambda x: x if isinstance(x, MessageChain) else x.get_content_platform_message_chain(), query.resp_messages
+                )
+            )
+        )
         timestamp = int(time.time())
         file_path = os.path.join(self.data_dir, f"{session_name}.csv")
 
