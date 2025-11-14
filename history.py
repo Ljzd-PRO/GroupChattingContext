@@ -48,7 +48,7 @@ class HistoryMgr:
 
     def write(self, session_name: str, query: Query, is_response: bool = False) -> None:
         """写入指定 session 历史记录"""
-        sender_id = query.sender_id if not is_response else query.adapter.bot_account_id
+        sender_id = query.sender_id if not is_response else (self.conf.get_by_session_name(session_name).self_name or query.adapter.bot_account_id)
         content = str(query.message_chain) if not is_response else "".join(
             map(
                 str, map(

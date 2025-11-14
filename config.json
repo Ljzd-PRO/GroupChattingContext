@@ -5,6 +5,7 @@
   },
   "default":{
     "limit": 20,
-    "propmt": "you are now in a group chatting."
+    "propmt": "you are now in a group chatting.",
+    "self_name": "你"
   }
 }
