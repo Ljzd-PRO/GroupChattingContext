@@ -43,16 +43,19 @@
 
 - prompt: 追加到 默认 prompt 后的内容
 - limit: bot 产生回复前发送的历史记录条数
+- self_name: 历史记录中自身的称呼（回复语句），为空则使用 bot 的 id
 
 ```json
 {
   "991250350(替换为你的群号)":{
     "limit": 20,
-    "propmt": "## Group Chatting Context\n 你现在正在一个三人小群里水群."
+    "propmt": "## Group Chatting Context\n 你现在正在一个三人小群里水群.",
+    "self_name": "你"
   },
   "default":{
     "limit": 20,
-    "propmt": "you are now in a group chatting."
+    "propmt": "you are now in a group chatting.",
+    "self_name": "你"
   }
 }
 ```

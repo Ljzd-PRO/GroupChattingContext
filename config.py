@@ -7,6 +7,8 @@ from dataclasses import dataclass
 class RuleObject:
     limit: int
     propmt: str
+    self_name: str | None
+    """历史记录中自身的称呼（回复语句），为空则使用Bot的ID"""
 
 
 class Config:
@@ -21,11 +23,13 @@ class Config:
             return RuleObject(
                 limit=self.data[str(group_id)]["limit"],
                 propmt=self.data[str(group_id)]["propmt"],
+                self_name=self.data[str(group_id)].get("self_name"),
             )
         else:
             return RuleObject(
                 limit=self.data["default"]["limit"],
                 propmt=self.data["default"]["propmt"],
+                self_name=self.data["default"].get("self_name"),
             )
 
     def get_by_session_name(self, session_name: str) -> RuleObject:
