@@ -1,7 +1,8 @@
 {
   "991250350":{
     "limit": 20,
-    "propmt": "## Group Chatting Context\n 你现在正在一个三人小群里水群."
+    "propmt": "## Group Chatting Context\n 你现在正在一个三人小群里水群.",
+    "self_name": "你"
   },
   "default":{
     "limit": 20,
